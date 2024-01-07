@@ -1,0 +1,6 @@
+__pycache__
+.pytest_cache
+.coverage
+pose_estimator\__pycache__
+junk
+htmlcov
