@@ -1,11 +1,10 @@
 import sys,os,json, cv2
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QFileDialog, QMessageBox, QStyle
 from PyQt5.QtTest import QTest
-from PyQt5.QtCore import Qt
-import PoseAnalyser
+from PyQt5.QtCore import Qt, QTimer
+import src.PoseAnalyser as PoseAnalyser
 import classes.event, classes.project , classes.eventCategory , classes.videoInfo
-from PyQt5.QtWidgets import QMessageBox
 from unittest.mock import patch, MagicMock, PropertyMock
 
 
@@ -391,3 +390,153 @@ class TestPoseAnalyser:
                         # Assert that update_markers and update_event_tree_view were called
                         update_markers_mock.assert_called_once()
                         update_tree_view_mock.assert_called_once()
+
+    #Test the pause method
+    def test_pause(self):
+        '''Test pause method'''
+
+        # Mock timer object to assert whether it was called or not
+        self.window.timer = MagicMock()
+
+        # Mock self.timer.stop
+        with patch.object(self.window.timer, 'stop') as stop_mock:
+
+            # Mock self.style().standardIcon and self.playBtn.setIcon
+            with patch.object(self.window.style(), 'standardIcon', return_value="Test Icon") as icon_mock, patch.object(self.window.playBtn, 'setIcon') as set_icon_mock, patch.object(self.window.playBtn, 'setChecked') as set_checked_mock:
+
+                # Call pause
+                self.window.pause()
+
+                # Assert that stop was called on the timer
+                stop_mock.assert_called_once()
+
+                # Assert that standardIcon was called with the correct argument
+                icon_mock.assert_called_once_with(QStyle.SP_MediaPlay)
+
+                # Assert that setIcon was called with the correct argument
+                set_icon_mock.assert_called_once_with("Test Icon")
+
+                # Assert that setChecked was called with the correct argument
+                set_checked_mock.assert_called_once_with(False)
+
+    # Test the play_video method by mocking the methods and objects it calls
+    def test_play_video(self):
+        '''Test play_video method'''
+
+        #Mocking the video object to check if it has been called as expected
+        self.window.cap = MagicMock()
+        # Mock timer object to assert whether it was called or not
+        self.window.timer = MagicMock()
+
+        # Mock self.cap.isOpened and self.playBtn.isChecked to return True
+        with patch.object(self.window.cap, 'isOpened', return_value=True), patch.object(self.window.playBtn, 'isChecked', return_value=True):
+
+            # Mock self.cap.get to return a test FPS
+            with patch.object(self.window.cap, 'get', return_value=30):
+
+                # Mock self.timer.start
+                with patch.object(self.window.timer, 'start') as start_mock:
+
+                    # Mock self.style().standardIcon and self.playBtn.setIcon
+                    with patch.object(self.window.style(), 'standardIcon', return_value="Test Icon") as icon_mock, patch.object(self.window.playBtn, 'setIcon') as set_icon_mock:
+
+                        # Call play_video
+                        self.window.play_video()
+
+                        # Assert that start was called on the timer with the correct argument 30FPS = 33ms
+                        start_mock.assert_called_once_with(33)
+
+                        # Assert that standardIcon was called with the correct argument
+                        icon_mock.assert_called_once_with(QStyle.SP_MediaPause)
+
+                        # Assert that setIcon was called with the correct argument
+                        set_icon_mock.assert_called_once_with("Test Icon")
+
+        # Testing the flip side functionality when playBtn is not checked
+        # Mock self.cap.isOpened and self.playBtn.isChecked to return True and False, respectively
+        with patch.object(self.window.cap, 'isOpened', return_value=True), patch.object(self.window.playBtn, 'isChecked', return_value=False):
+
+            # Mock self.pause
+            with patch.object(self.window, 'pause') as pause_mock:
+
+                # Call play_video
+                self.window.play_video()
+
+                # Assert that pause was called
+                pause_mock.assert_called_once()
+
+    # Test the open_file method when a user selects a file
+    def test_open_file(self):
+        '''Test open_file method'''
+
+        # Mock the file dialog and the user selecting test.mp4 when no events exist not triggering the saveEvent path
+        with patch.object(QFileDialog, 'getOpenFileName', return_value=("test.mp4", "*.mp4")) as file_dialog_mock:
+
+            # Mock self.project.getNumberOfEvents to return 0 (mocking the project having no events and this being the first video file)
+            with patch.object(self.window.project, 'getNumberOfEvents', return_value=0) as get_number_of_events_mock:
+
+                # Mock cv2's VideoCapture to return a mock object
+                with patch.object(cv2, 'VideoCapture') as video_capture_mock:
+
+                    # Mock self.nextFrameSlot to check if the open file method calls this to display the first frame
+                    with patch.object(self.window, 'nextFrameSlot') as next_frame_slot_mock:
+
+                        # Call open_file
+                        self.window.open_file()
+
+                        # List of things the method should have done
+                        # Assert a file dialog was opened for the user to select a file
+                        file_dialog_mock.assert_called_once()
+
+                        # Assert get_number_of_events was called to check if the project has any events
+                        get_number_of_events_mock.assert_called_once()
+
+                        # Assert that VideoCapture was called with the correct argument
+                        video_capture_mock.assert_called_once_with("test.mp4")
+
+                        # Assert that nextFrameSlot was called
+                        next_frame_slot_mock.assert_called_once()                
+
+        # Mock the file dialog and the user selecting test.mp4 when events exist triggering the saveEvent path
+                        
+        # Same as before, mocking a file  dialog
+        with patch.object(QFileDialog, 'getOpenFileName', return_value=("test.mp4", "*.mp4")) as file_dialog_mock:
+
+            # Mock self.project.getNumberOfEvents to return 1 (mocking the project having events and this not being the first video file)
+            with patch.object(self.window.project, 'getNumberOfEvents', return_value=1):
+                
+                # Mock QMessageBox.exec_ to appear and the user selecting to discard the events
+                with patch.object(QMessageBox, 'exec_', return_value=QMessageBox.Discard) as message_box_mock:
+
+                    # Mock self.save_project to check if it was not called since the user selected to discard the events
+                    with patch.object(self.window, 'save_project') as save_project_mock:
+                        
+                         # Mock cv2's VideoCapture to return a mock object
+                        with patch.object(cv2, 'VideoCapture') as video_capture_mock:
+
+                            # Mock self.nextFrameSlot to check if the open file method calls this to display the first frame
+                            with patch.object(self.window, 'nextFrameSlot') as next_frame_slot_mock:
+
+                                # Call open_file
+                                self.window.open_file()
+
+                                # List of things the method should have done
+                                # Assert a file dialog was opened for the user to select a file
+                                file_dialog_mock.assert_called_once()
+
+                                # Assert get_number_of_events was called to check if the project has any events
+                                get_number_of_events_mock.assert_called_once()
+
+                                # Assert the message box to prompt the user to save was called
+                                message_box_mock.assert_called_once()
+
+                                # Assert that save_project was not called as the user selected to discard the events
+                                save_project_mock.assert_not_called()
+                                
+                                # Assert that VideoCapture was called with the correct argument
+                                video_capture_mock.assert_called_once_with("test.mp4")
+
+                                # Assert that nextFrameSlot was called
+                                next_frame_slot_mock.assert_called_once()
+               
+        

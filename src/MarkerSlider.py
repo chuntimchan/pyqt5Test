@@ -18,12 +18,15 @@ class MarkerSlider(QSlider):
         self.update()  # Trigger a repaint
 
     def addMarker(self, frame,color = QColor(255, 0, 0)):
+        '''Add a marker to the slider, frame is the frame number and color is the color of the marker. 
+        Colour has a default value of red'''
         #Make marker a tuple of (frameNumber,colour)
         marker = (frame,self.value(),color)
         self.markers.append(marker)
         self.update()
 
     def paintEvent(self, e):
+        '''Paint the markers on the slider'''
         super(MarkerSlider, self).paintEvent(e)
 
         if not self.markers:
@@ -36,9 +39,7 @@ class MarkerSlider(QSlider):
             x = int(x)  # Convert x to an integer
 
             painter.save()  # Save the painter state
-            #print(marker[1])
             painter.setBrush(QColor(marker[2]))  # Set the brush color for markers
-
             # Define the points of the triangle
             points = [QPoint(x, 10), QPoint(x - 5, 0), QPoint(x + 5, 0)]
             triangle = QPolygon(points)
@@ -64,6 +65,7 @@ class MarkerSlider(QSlider):
         for marker in self.markers:
             x = self.width() * (marker[0] / self.maximum())
             x = int(x)  # Convert x to an integer
+
             if abs(e.x() - x) < 3:  # If the click is within 3 pixels of the marker
                 self.setValue(marker[0])  # Set the slider to the marker's value
                 self.markerClicked.emit(marker[0])  # Emit the markerClicked signal

@@ -1,10 +1,10 @@
 import sys, os, cv2, colorsys,json
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem,QApplication, QWidget,QComboBox, QHBoxLayout, QFrame, QVBoxLayout, QMainWindow, QLabel,QPushButton, QSpacerItem, QSizePolicy, QStyle, QSlider, QAction, QMessageBox, QInputDialog
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QFileDialog
-import junk.VideoPlayerWidget as VPW
 from PyQt5.QtGui import QImage,QPixmap
-from MarkerSlider import MarkerSlider
+from src.MarkerSlider import MarkerSlider
 from classes import eventCategory,project,videoInfo, event
 from pose_estimator import webcam_pose_head_tracking
 
@@ -376,6 +376,12 @@ class PoseAnalyser(QMainWindow):
             QMessageBox.warning(self, "Invalid Category Name", "Please enter a valid category name.")
             #Break out of the add_event function
             return
+        elif category_name == -1:
+            #Show a message box that the category name already exists
+            QMessageBox.warning(self, "Invalid Category Name.", "Category Already exists. Select this in the combo box")
+            #Break out of the add_event function
+            return
+            
 
         #Create the event Object
         new_event = event.Event(self.project.getNumberOfEvents(), self.currentFrame)
@@ -401,6 +407,13 @@ class PoseAnalyser(QMainWindow):
             print("Empty Category Name")
             return ""
         
+        #Check if the category name already exists
+        for category in self.project.eventCategories:
+            if category.categoryName == event_category_name[0]:
+                #Show a message box error that the category name already exists
+                print("Category Name Already Exists")
+                return -1
+            
         #Create new event category
         new_event_category = eventCategory.EventCategory(event_category_name[0],None,self.auto_colour_picker())
         #Add new event category to project
@@ -573,10 +586,11 @@ class PoseAnalyser(QMainWindow):
 
     #Save Project and all objects within project into a json file
     def save_project(self):
+
         #If the project name is not empty
         if self.project.projectName != "":
             #Show the Input dialog prefilled with the project name
-            self.project.projectName = QInputDialog.getText(self, "Save Project", "Project Name", text=self.project.projectName[0])
+            self.project.projectName = QInputDialog.getText(self, "Save Project", "Project Name", text=self.project.projectName[0])[0]
         else:
             #Opens a Message box to get the project name
             self.project.projectName = QInputDialog.getText(self, "Save Project", "Project Name")[0]
@@ -595,7 +609,7 @@ class PoseAnalyser(QMainWindow):
             return
 
         #Add .json to the end of filename
-        save_file_name = self.project.projectName[0] + ".json"
+        save_file_name = self.project.projectName + ".json"
 
         # Check if the file already exists
         if os.path.exists(save_file_name):
