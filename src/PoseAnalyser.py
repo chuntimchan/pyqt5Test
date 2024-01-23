@@ -121,6 +121,10 @@ class PoseAnalyser(QMainWindow):
         self.saveBtn = QPushButton('Save Project')
         self.saveBtn.clicked.connect(self.save_project)
 
+        #Add Load Events JSON Button
+        self.load_events_button = QPushButton('Load Events')
+        self.load_events_button.clicked.connect(self.load_events_file)
+
         #Adding a Combo Box to select an event category or add new category
         self.event_category_combo_box = QComboBox()
         self.event_category_combo_box.setFixedSize(150, 50)  # Set width to 100 and height to 50
@@ -135,6 +139,7 @@ class PoseAnalyser(QMainWindow):
         event_add_layout.addWidget(self.event_category_combo_box, alignment=Qt.AlignLeft)
         event_add_layout.addStretch(1)
         event_add_layout.addWidget(self.saveBtn, alignment=Qt.AlignRight)
+        event_add_layout.addWidget(self.load_events_button, alignment=Qt.AlignRight)
 
         #---------------------------------
         #Create Slider
@@ -170,17 +175,17 @@ class PoseAnalyser(QMainWindow):
         self.show_pose_button.setFixedSize(100, 50)  # Set width to 100 and height to 50
         self.show_pose_button.clicked.connect(self.show_pose)
 
-        detect_pose_button = QPushButton("Detect Pose")
-        detect_pose_button.setFixedSize(100, 50)  # Set width to 100 and height to 50
+        self.detect_pose_button = QPushButton("Detect Pose")
+        self.detect_pose_button.setFixedSize(100, 50)  # Set width to 100 and height to 50
 
-        show_pose_only_button = QPushButton("Show Pose Only")
-        show_pose_only_button.setFixedSize(100, 50)  # Set width to 100 and height to 50
+        self.show_pose_only_button = QPushButton("Show Pose Only")
+        self.show_pose_only_button.setFixedSize(100, 50)  # Set width to 100 and height to 50
 
         spacer = QSpacerItem(0, 0, QSizePolicy.Minimum, QSizePolicy.Expanding)
         # Adding buttons to the pose_layout
         pose_layout.addWidget(self.show_pose_button, alignment=Qt.AlignCenter)
-        pose_layout.addWidget(detect_pose_button, alignment=Qt.AlignCenter)
-        pose_layout.addWidget(show_pose_only_button, alignment=Qt.AlignCenter)
+        pose_layout.addWidget(self.detect_pose_button, alignment=Qt.AlignCenter)
+        pose_layout.addWidget(self.show_pose_only_button, alignment=Qt.AlignCenter)
         pose_layout.addItem(spacer)
 
         # Set the stretch factor of video_layout to pose_layout as a 5:1 ratio
@@ -480,6 +485,16 @@ class PoseAnalyser(QMainWindow):
         #help_menu = menu_bar.addMenu('Help')
 
         #Link methods for each menu
+        #Create New Project
+        create_new_project_action = QAction('Create New Project', self)
+        file_menu.addAction(create_new_project_action)
+        create_new_project_action.triggered.connect(self.create_project)
+
+        #Open Existing Project Folder
+        open_project_action = QAction('Open Existing Project', self)
+        file_menu.addAction(open_project_action)
+        open_project_action.triggered.connect(self.open_project)
+
         #Open File
         open_video_action = QAction('Open Video', self)
         file_menu.addAction(open_video_action)
@@ -500,6 +515,155 @@ class PoseAnalyser(QMainWindow):
         settings_menu.addAction(set_frame_skip_size_action)
         set_frame_skip_size_action.triggered.connect(self.set_frame_skip_size)
 
+    #Opens an existing project folder
+    def open_project(self):
+        #Let's the user choose what folder to open
+        project_path = QFileDialog.getExistingDirectory(self, "Choose Project Directory", "")
+        if project_path == "":
+            #Show message box that the path was invalid
+            QMessageBox.warning(self, "Invalid Path", "Please select a valid path.")
+            return
+        
+        #Check if a video file exists in the directory
+        video_file_exists = False
+        video_file_path = ""
+        for file in os.listdir(project_path):
+            if file.endswith(".mp4"):
+                video_file_exists = True
+                video_file_path = project_path + "/" + file
+                break
+
+        #If a video file does not exist in the directory show a message box and return
+        if not video_file_exists:
+            QMessageBox.warning(self, "Invalid Path", "Please select a directory with a video file.")
+            return
+        
+        #Check if a events json file exists in the directory
+        events_file_exists = False
+        for file in os.listdir(project_path):
+            if file.endswith(".json"):
+                events_file_exists = True
+                break
+
+        #If a events json file does not exist in the directory show a message box and return
+        if not events_file_exists:
+            QMessageBox.warning(self, "Invalid Path", "Please select a directory with a events json file.")
+            return
+        
+        #Clear Events Tree and Event Combo Box and Markers
+        self.event_tree.clear()
+        self.videoSlider.setMarkers([])
+        self.event_category_combo_box.clear()
+        self.event_category_combo_box.addItem("Add New Event Category")
+
+        #Clear project and subsiquent nested objects are created
+        self.project = project.Project()
+        myVideoInfo = videoInfo.VideoInfo("",0,0,"")
+        self.project.videoInfo = myVideoInfo
+        
+        #Change the current project JSON file's filepath to the new project directory
+        self.project.filepath = project_path
+
+        #Load the events json file
+        with open(project_path + "/" + file) as f:
+            data = json.load(f)
+
+        #Check if the video Info matches the current video and sends a information message box and does not continue
+        errors = []
+
+        print(data)
+        print(self.project)
+        #Load in the video info of the mp4 into the project object
+        self.project.videoInfo.name = (os.path.basename(video_file_path))
+        #Initialise cv2 cap with the video file
+        self.cap = cv2.VideoCapture(video_file_path)
+        self.project.videoInfo.length = (self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.project.videoInfo.framerate = (self.cap.get(cv2.CAP_PROP_FPS))
+        self.project.videoInfo.filepath = (video_file_path)
+
+
+        if data['videoInfo']['filepath'] != self.project.videoInfo.getFilepath:
+            errors.append("The filepath in the events json does not match the current video's filepath.")
+
+        if data['videoInfo']['name'] != self.project.videoInfo.getName:
+            errors.append("The name in the events json does not match the current video's name.")
+        
+        if data['videoInfo']['length'] != self.project.videoInfo.getLength:
+            errors.append("The length in the events json does not match the current video's length.")
+
+        if errors:
+            #If the only error is the filepath error allow the user to continue if they choose to and update the project video info file path
+            if len(errors) == 1 and errors[0] == "The filepath in the events json does not match the current video's filepath.":
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Warning)
+                msg.setText("The filepath in the events json does not match the current video's filepath. Do you want to continue? The events json filepath will be updated.")
+                msg.setWindowTitle("Warning")
+                msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+
+                retval = msg.exec_()
+                if retval == QMessageBox.No:
+                    return
+                else:
+                    #Set the events json file's filepath to the current video's filepath
+                    data['videoInfo']['filepath'] = self.project.videoInfo.filepath
+
+            #Else show all errors and do not continue
+            else:
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Information)
+                msg.setText("\n".join(errors))
+                msg.setWindowTitle("Information")
+                msg.setStandardButtons(QMessageBox.Ok)
+
+                retval = msg.exec_()
+                return
+            
+            #Load the events json file data into the project object
+            self.update_event_tree_view()
+            self.update_event_combo()
+            self.update_markers()
+
+            #Enable Play Skip Buttons
+            self.enable_buttons()
+
+            #Next frame to show the video
+            self.nextFrameSlot()
+
+
+
+
+    #Creates a new project
+    def create_project(self):
+        #First it opens a file dialog to let the user choose where to create the project
+        project_path = QFileDialog.getExistingDirectory(self, "Choose Project Directory", "")
+        if project_path == "":
+            #Show message box that the path was invalid
+            QMessageBox.warning(self, "Invalid Path", "Please select a valid path.")
+            return
+        
+        #Then it opens a input dialog to get the project name
+        project_name = QInputDialog.getText(self, "Create Project", "Project Name")
+        if project_name[0] == "":
+            #Show message box that the project name was invalid
+            QMessageBox.warning(self, "Invalid Project Name", "Please enter a valid project name.")
+            return
+        
+        #Check the directory doesn't already exist
+        if os.path.exists(project_path + "/" + project_name[0]):
+            #Add a message box that the directory already exists
+            QMessageBox.warning(self, "Invalid Project Name", "The project directory already exists.")
+            return
+        
+        #Create the project directory
+        os.mkdir(project_path + "/" + project_name[0])
+
+        #Change the current project JSON file's filepath to the new project directory
+        self.project.filepath = project_path
+
+        #Show a message box that the project was created including filename and path
+        QMessageBox.information(self, "Project Created", "Project created at " + project_path + "/" + project_name[0])
+
+    
     #Loads events file in and populates the global project variable object  
     def load_events_file(self):
         #Let's the user choose a JSON file
@@ -669,6 +833,10 @@ class PoseAnalyser(QMainWindow):
         self.save_project_action.setEnabled(False)
         self.load_events_action.setEnabled(False)
         self.saveBtn.setEnabled(False)
+        self.load_events_button.setEnabled(False)
+        self.show_pose_button.setEnabled(False)
+        self.detect_pose_button.setEnabled(False)
+        self.show_pose_only_button.setEnabled(False)
 
     #Enable Play Control Buttons and Add Event Button
     def enable_buttons(self):
@@ -682,6 +850,10 @@ class PoseAnalyser(QMainWindow):
         self.save_project_action.setEnabled(True)
         self.load_events_action.setEnabled(True)
         self.saveBtn.setEnabled(True)
+        self.load_events_button.setEnabled(True)
+        self.show_pose_button.setEnabled(True)
+        self.detect_pose_button.setEnabled(True)
+        self.show_pose_only_button.setEnabled(True)
 
 if __name__ == '__main__':
     os.environ['QT_MULTIMEDIA_PREFERRED_PLUGINS'] = 'windowsmediafoundation'

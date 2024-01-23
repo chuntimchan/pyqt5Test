@@ -151,13 +151,13 @@ class TestPoseAnalyser:
                     assert self.window.project.projectName == "TestProject"
 
                     # Assert that the project was saved to a file
-                    with open("T.json", 'r') as f:
+                    with open("TestProject.json", 'r') as f:
                         saved_project = json.load(f)
                     assert saved_project == self.window.project.to_dict()
 
 
                     #Delete the json file after the test
-                    os.remove("T.json")
+                    os.remove("TestProject.json")
 
     #Testing the show pose method works changing the constant
     def test_show_pose(self):

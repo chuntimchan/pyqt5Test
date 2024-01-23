@@ -1,0 +1,39 @@
+{
+    "filepath": "",
+    "projectName": "Demo1",
+    "videoInfo": {
+        "name": "production_id_4812014 (1080p).mp4",
+        "length": 1920.0,
+        "framerate": 29.97002997002997,
+        "filepath": "C:/Users/chunt/Downloads/production_id_4812014 (1080p).mp4"
+    },
+    "eventCategories": [
+        {
+            "categoryName": "Walking",
+            "colour": "#ff0000",
+            "eventsList": [
+                {
+                    "id": 0,
+                    "frameNumber": 74,
+                    "duration": 0
+                },
+                {
+                    "id": 1,
+                    "frameNumber": 154,
+                    "duration": 0
+                }
+            ]
+        },
+        {
+            "categoryName": "Test",
+            "colour": "#004aff",
+            "eventsList": [
+                {
+                    "id": 2,
+                    "frameNumber": 201,
+                    "duration": 0
+                }
+            ]
+        }
+    ]
+}

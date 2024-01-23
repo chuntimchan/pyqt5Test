@@ -1,0 +1,23 @@
+{
+    "filepath": "",
+    "projectName": "henlo",
+    "videoInfo": {
+        "name": "production_id_4812014 (1080p).mp4",
+        "length": 1920.0,
+        "framerate": 29.97002997002997,
+        "filepath": "C:/Users/chunt/OneDrive/Desktop/pyqt5Test/videos/Henlo/TestProjectMaking/production_id_4812014 (1080p).mp4"
+    },
+    "eventCategories": [
+        {
+            "categoryName": "event",
+            "colour": "#ff0000",
+            "eventsList": [
+                {
+                    "id": 0,
+                    "frameNumber": 47,
+                    "duration": 0
+                }
+            ]
+        }
+    ]
+}
