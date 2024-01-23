@@ -1,4 +1,4 @@
-import sys, os, cv2, colorsys,json
+import sys, os, cv2, colorsys,json, shutil
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem,QApplication, QWidget,QComboBox, QHBoxLayout, QFrame, QVBoxLayout, QMainWindow, QLabel,QPushButton, QSpacerItem, QSizePolicy, QStyle, QSlider, QAction, QMessageBox, QInputDialog
 from PyQt5.QtCore import Qt, QTimer
@@ -62,8 +62,8 @@ class PoseAnalyser(QMainWindow):
         self.videoName = QLabel("Video Name")
         
         #Add open video button
-        self.openBtn = QPushButton('Open Video')
-        self.openBtn.clicked.connect(self.open_file) 
+        self.openBtn = QPushButton('Open Project')
+        self.openBtn.clicked.connect(self.open_project) 
 
         #create Horizontal Layout for play pause, next frame etc buttons.--------------------------
         play_skip_layout = QHBoxLayout()
@@ -203,27 +203,17 @@ class PoseAnalyser(QMainWindow):
         self.videoSlider.setRange(0, duration)
 
     #Open file function, gets the filename and sets the video label to the video and starts the first frame while setting the label video name
-    def open_file(self):
-        #Gets file name
-        filename, _ = QFileDialog.getOpenFileName(self, "Open Video", "", "MP4 Files (*.mp4)")
+    def open_file(self,filename):
+        '''With an input filename (full file path and name) it will proceed to open the video file and update all GUI elements with the loaded in video'''
+        filename = filename
 
-        #Check if there are currently any events in the project and if there are any unsaved events
-        if self.project.getNumberOfEvents() > 0:
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Warning)
-            msg.setText("There are unsaved events in the project. Do you want to save them? They will be deleted if unsaved.")
-            msg.setWindowTitle("Warning")
-            msg.setStandardButtons(QMessageBox.Save | QMessageBox.Discard)
-
-            retval = msg.exec_()
-            if retval == QMessageBox.Save:
-                self.save_project()
-            
+        #No longer needed due to the validation being done in the open_project function
         # Check if the file is an MP4 video
-        if not filename.lower().endswith('.mp4'):
-            QMessageBox.warning(self, "Invalid file", "Please select an MP4 video.")
-            return
+        # if not filename.lower().endswith('.mp4'):
+        #     QMessageBox.warning(self, "Invalid file", "Please select an MP4 video.")
+        #     return
         
+        #All the clearing also moved to open project
         #Clear Events Tree and Event Combo Box and Markers
         self.event_tree.clear()
         self.videoSlider.setMarkers([])
@@ -234,11 +224,6 @@ class PoseAnalyser(QMainWindow):
         self.project.videoInfo = videoInfo.VideoInfo("",0,0,"")
         
         self.currentFrame = 0
-        #Menu cleanup remove open button when a file is opened
-        if self.file_selected == False:
-            self.file_selected = True
-            self.openBtn.setEnabled(False)
-            self.openBtn.hide()
 
         #Opens Video CV2
         self.cap = cv2.VideoCapture(filename)
@@ -496,9 +481,9 @@ class PoseAnalyser(QMainWindow):
         open_project_action.triggered.connect(self.open_project)
 
         #Open File
-        open_video_action = QAction('Open Video', self)
-        file_menu.addAction(open_video_action)
-        open_video_action.triggered.connect(self.open_file)
+        # open_video_action = QAction('Open Video', self)
+        # file_menu.addAction(open_video_action)
+        # open_video_action.triggered.connect(self.open_file)
 
         #Save Project
         self.save_project_action = QAction('Save Project', self)
@@ -506,9 +491,9 @@ class PoseAnalyser(QMainWindow):
         self.save_project_action.triggered.connect(self.save_project)
         
         #Load Events File
-        self.load_events_action = QAction('Load Events File', self)
-        file_menu.addAction(self.load_events_action)
-        self.load_events_action.triggered.connect(self.load_events_file)
+        # self.load_events_action = QAction('Load Events File', self)
+        # file_menu.addAction(self.load_events_action)
+        # self.load_events_action.triggered.connect(self.load_events_file)
 
         #Frame Skip Number
         set_frame_skip_size_action = QAction('Set Frame Skip Size', self)
@@ -517,6 +502,19 @@ class PoseAnalyser(QMainWindow):
 
     #Opens an existing project folder
     def open_project(self):
+
+        #Check if there are currently any events in the project and if there are any unsaved events
+        if self.project.getNumberOfEvents() > 0:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText("There are unsaved events in the project. Do you want to save them? They will be deleted if unsaved.")
+            msg.setWindowTitle("Warning")
+            msg.setStandardButtons(QMessageBox.Save | QMessageBox.Discard)
+
+            retval = msg.exec_()
+            if retval == QMessageBox.Save:
+                self.save_project()
+        
         #Let's the user choose what folder to open
         project_path = QFileDialog.getExistingDirectory(self, "Choose Project Directory", "")
         if project_path == "":
@@ -527,28 +525,54 @@ class PoseAnalyser(QMainWindow):
         #Check if a video file exists in the directory
         video_file_exists = False
         video_file_path = ""
+        video_number = 0
         for file in os.listdir(project_path):
             if file.endswith(".mp4"):
                 video_file_exists = True
                 video_file_path = project_path + "/" + file
+                video_number = video_number + 1
                 break
-
-        #If a video file does not exist in the directory show a message box and return
-        if not video_file_exists:
-            QMessageBox.warning(self, "Invalid Path", "Please select a directory with a video file.")
-            return
         
+
         #Check if a events json file exists in the directory
         events_file_exists = False
+        events_file_path = ""
+        events_files_number = 0
         for file in os.listdir(project_path):
             if file.endswith(".json"):
                 events_file_exists = True
+                events_files_number = events_files_number + 1
+                events_file_path = project_path + "/" + file
                 break
 
-        #If a events json file does not exist in the directory show a message box and return
-        if not events_file_exists:
-            QMessageBox.warning(self, "Invalid Path", "Please select a directory with a events json file.")
+        #Check if there is only one video file
+        if video_number > 1:
+            QMessageBox.warning(self, "Invalid Path", "Please select a directory with only one video file.")
             return
+        elif events_files_number > 1:
+            QMessageBox.warning(self, "Invalid Path", "Please select a directory with only one events json file.")
+            return
+
+        # Opens the Video File
+        #If a video file does not exist in the directory show a message box and return otherwise loads the video file
+        if video_file_exists:
+            self.open_file(video_file_path)
+        else:
+            QMessageBox.warning(self, "Invalid Path", "Please select a directory with a video file.")
+            return
+        
+        #If a events json file does not exist in the directory show a message box and return
+        if events_file_exists:
+            #Load in events file
+            self.load_events_file(events_file_path)
+            print(events_file_exists)
+        else:
+            #Show a message box with a yes and no asking if they want to load a project that has no events json file
+            reply = QMessageBox.question(self, "No Events File", "Do you want to load the project without an events JSON file?", QMessageBox.Yes | QMessageBox.No)
+            if not reply == QMessageBox.Yes:
+                #Show a message box that no project was loaded
+                QMessageBox.warning(self, "Cancelled", "No project was loaded.")
+                return
         
         #Clear Events Tree and Event Combo Box and Markers
         self.event_tree.clear()
@@ -564,70 +588,23 @@ class PoseAnalyser(QMainWindow):
         #Change the current project JSON file's filepath to the new project directory
         self.project.filepath = project_path
 
-        #Load the events json file
-        with open(project_path + "/" + file) as f:
-            data = json.load(f)
-
-        #Check if the video Info matches the current video and sends a information message box and does not continue
-        errors = []
-
-        print(data)
-        print(self.project)
-        #Load in the video info of the mp4 into the project object
-        self.project.videoInfo.name = (os.path.basename(video_file_path))
-        #Initialise cv2 cap with the video file
-        self.cap = cv2.VideoCapture(video_file_path)
-        self.project.videoInfo.length = (self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        self.project.videoInfo.framerate = (self.cap.get(cv2.CAP_PROP_FPS))
-        self.project.videoInfo.filepath = (video_file_path)
-
-
-        if data['videoInfo']['filepath'] != self.project.videoInfo.getFilepath:
-            errors.append("The filepath in the events json does not match the current video's filepath.")
-
-        if data['videoInfo']['name'] != self.project.videoInfo.getName:
-            errors.append("The name in the events json does not match the current video's name.")
-        
-        if data['videoInfo']['length'] != self.project.videoInfo.getLength:
-            errors.append("The length in the events json does not match the current video's length.")
-
-        if errors:
-            #If the only error is the filepath error allow the user to continue if they choose to and update the project video info file path
-            if len(errors) == 1 and errors[0] == "The filepath in the events json does not match the current video's filepath.":
-                msg = QMessageBox()
-                msg.setIcon(QMessageBox.Warning)
-                msg.setText("The filepath in the events json does not match the current video's filepath. Do you want to continue? The events json filepath will be updated.")
-                msg.setWindowTitle("Warning")
-                msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-
-                retval = msg.exec_()
-                if retval == QMessageBox.No:
-                    return
-                else:
-                    #Set the events json file's filepath to the current video's filepath
-                    data['videoInfo']['filepath'] = self.project.videoInfo.filepath
-
-            #Else show all errors and do not continue
-            else:
-                msg = QMessageBox()
-                msg.setIcon(QMessageBox.Information)
-                msg.setText("\n".join(errors))
-                msg.setWindowTitle("Information")
-                msg.setStandardButtons(QMessageBox.Ok)
-
-                retval = msg.exec_()
-                return
             
-            #Load the events json file data into the project object
-            self.update_event_tree_view()
-            self.update_event_combo()
-            self.update_markers()
+        #Load the events json file data into the project object
+        self.update_event_tree_view()
+        self.update_event_combo()
+        self.update_markers()
 
-            #Enable Play Skip Buttons
-            self.enable_buttons()
+        #Enable Play Skip Buttons
+        self.enable_buttons()
 
-            #Next frame to show the video
-            self.nextFrameSlot()
+        #Next frame to show the video
+        self.nextFrameSlot()
+
+        #Menu cleanup remove open button when a file is opened
+        if self.file_selected == False:
+            self.file_selected = True
+            self.openBtn.setEnabled(False)
+            self.openBtn.hide()
 
 
 
@@ -648,6 +625,8 @@ class PoseAnalyser(QMainWindow):
             QMessageBox.warning(self, "Invalid Project Name", "Please enter a valid project name.")
             return
         
+        self.project.projectName = project_name[0]
+
         #Check the directory doesn't already exist
         if os.path.exists(project_path + "/" + project_name[0]):
             #Add a message box that the directory already exists
@@ -657,17 +636,38 @@ class PoseAnalyser(QMainWindow):
         #Create the project directory
         os.mkdir(project_path + "/" + project_name[0])
 
+        #Show a message box to prompt the user to select a video file
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setText("Please select a video file.")
+        msg.setWindowTitle("Information")
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
+
         #Change the current project JSON file's filepath to the new project directory
         self.project.filepath = project_path
+
+        #Make user choose a video file
+        filename, _ = QFileDialog.getOpenFileName(self, "Open Video", "", "MP4 Files (*.mp4)")
+        # Check if the file is an MP4 video
+        if not filename.lower().endswith('.mp4'):
+            QMessageBox.warning(self, "Invalid file", "Please select an MP4 video.")
+            return
+        
+        #Copy the video file to the project directory
+        shutil.copy(filename, project_path + "/" + project_name[0])
+        
+        #Opens the video file
+        self.open_file(project_path + "/" + project_name[0] + "/" + os.path.basename(filename))
 
         #Show a message box that the project was created including filename and path
         QMessageBox.information(self, "Project Created", "Project created at " + project_path + "/" + project_name[0])
 
     
     #Loads events file in and populates the global project variable object  
-    def load_events_file(self):
+    def load_events_file(self,filepath):
         #Let's the user choose a JSON file
-        filename, _ = QFileDialog.getOpenFileName(self, "Open Events File", "", "JSON Files (*.json)")
+        filename = filepath
 
         # Check if the file is an JSON file
         if not filename.lower().endswith('.json'):
@@ -752,31 +752,32 @@ class PoseAnalyser(QMainWindow):
     def save_project(self):
 
         #If the project name is not empty
-        if self.project.projectName != "":
-            #Show the Input dialog prefilled with the project name
-            self.project.projectName = QInputDialog.getText(self, "Save Project", "Project Name", text=self.project.projectName[0])[0]
-        else:
-            #Opens a Message box to get the project name
-            self.project.projectName = QInputDialog.getText(self, "Save Project", "Project Name")[0]
+        # if self.project.projectName != "":
+        #     #Show the Input dialog prefilled with the project name
+        #     self.project.projectName = QInputDialog.getText(self, "Save Project", "Project Name", text=self.project.projectName[0])[0]
+        # else:
+        #     #Opens a Message box to get the project name
+        #     self.project.projectName = QInputDialog.getText(self, "Save Project", "Project Name")[0]
 
-        #Set a default if QInput dialog returns nothing
-        if self.project.projectName == "":
-            self.project.projectName = "Default"
-            #Show a message box saying the file did not save as the name was invalid
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Warning)
-            msg.setText("The project name was invalid. The project has not been saved")
-            msg.setWindowTitle("Warning")
-            msg.setStandardButtons(QMessageBox.Ok)
+        # #Set a default if QInput dialog returns nothing
+        # if self.project.projectName == "":
+        #     self.project.projectName = "Default"
+        #     #Show a message box saying the file did not save as the name was invalid
+        #     msg = QMessageBox()
+        #     msg.setIcon(QMessageBox.Warning)
+        #     msg.setText("The project name was invalid. The project has not been saved")
+        #     msg.setWindowTitle("Warning")
+        #     msg.setStandardButtons(QMessageBox.Ok)
 
-            retval = msg.exec_()
-            return
+        #     retval = msg.exec_()
+        #     return
 
         #Add .json to the end of filename
         save_file_name = self.project.projectName + ".json"
 
-        # Check if the file already exists
-        if os.path.exists(save_file_name):
+        # Check if the file already exists in the project directory
+
+        if os.path.exists(self.project.filepath + "/" + save_file_name):
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Warning)
             msg.setText("The file already exists. Do you want to overwrite it?")
@@ -787,7 +788,8 @@ class PoseAnalyser(QMainWindow):
             if retval != QMessageBox.Ok:  # If the user did anything else that is not Ok return
                 return
         
-        with open(save_file_name, 'w') as f:
+        #Save the project to the project directory
+        with open(self.project.filepath + "/" + save_file_name, 'w') as f:
             json.dump(self.project.to_dict(), f, indent=4)
 
     def closeEvent(self, event):
@@ -831,9 +833,9 @@ class PoseAnalyser(QMainWindow):
         self.videoSlider.setEnabled(False)
         self.add_event_button.setEnabled(False)
         self.save_project_action.setEnabled(False)
-        self.load_events_action.setEnabled(False)
+        #self.load_events_action.setEnabled(False)
         self.saveBtn.setEnabled(False)
-        self.load_events_button.setEnabled(False)
+        #self.load_events_button.setEnabled(False)
         self.show_pose_button.setEnabled(False)
         self.detect_pose_button.setEnabled(False)
         self.show_pose_only_button.setEnabled(False)
@@ -848,9 +850,9 @@ class PoseAnalyser(QMainWindow):
         self.videoSlider.setEnabled(True)
         self.add_event_button.setEnabled(True)
         self.save_project_action.setEnabled(True)
-        self.load_events_action.setEnabled(True)
+        #self.load_events_action.setEnabled(True)
         self.saveBtn.setEnabled(True)
-        self.load_events_button.setEnabled(True)
+        #self.load_events_button.setEnabled(True)
         self.show_pose_button.setEnabled(True)
         self.detect_pose_button.setEnabled(True)
         self.show_pose_only_button.setEnabled(True)
