@@ -644,7 +644,7 @@ class PoseAnalyser(QMainWindow):
         msg.setStandardButtons(QMessageBox.Ok)
         msg.exec_()
 
-        #Change the current project JSON file's filepath to the new project directory
+        #Change the current project filepath to the new project directory
         self.project.filepath = project_path
 
         #Make user choose a video file
@@ -653,12 +653,15 @@ class PoseAnalyser(QMainWindow):
         if not filename.lower().endswith('.mp4'):
             QMessageBox.warning(self, "Invalid file", "Please select an MP4 video.")
             return
-        
-        #Copy the video file to the project directory
-        shutil.copy(filename, project_path + "/" + project_name[0])
-        
+
         #Opens the video file
         self.open_file(project_path + "/" + project_name[0] + "/" + os.path.basename(filename))
+
+        #Saves the video file's information into the project object
+        self.project.videoInfo.name = (os.path.basename(filename))
+        self.project.videoInfo.length = (self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.project.videoInfo.framerate = (self.cap.get(cv2.CAP_PROP_FPS))
+        self.project.videoInfo.filepath = (filename)
 
         #Show a message box that the project was created including filename and path
         QMessageBox.information(self, "Project Created", "Project created at " + project_path + "/" + project_name[0])
