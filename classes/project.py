@@ -4,11 +4,11 @@ from classes.eventCategory import EventCategory
 from classes.videoInfo import VideoInfo
 
 class Project():
-    def __init__(self, name: str = '', videoInfo: VideoInfo = None, eventCategories: List[EventCategory] = None, filePath: str = '',**kwargs):
-        self.projectName = name
-        self.videoInfo = VideoInfo(**videoInfo) if videoInfo is not None else VideoInfo("Default",0,0,filePath)
+    def __init__(self, projectName: str = '', videoInfo: VideoInfo = None, eventCategories: List[EventCategory] = None, filepath: str = '',**kwargs):
+        self.projectName = projectName
+        self.videoInfo = VideoInfo(**videoInfo) if videoInfo is not None else VideoInfo("Default",0,0,filepath)
         self.eventCategories = [EventCategory(**category) for category in eventCategories] if eventCategories is not None else []
-        self.filepath = filePath
+        self.filepath = filepath
 
     # Add Event to Event Category
     def addCategory(self, eventCategory):
