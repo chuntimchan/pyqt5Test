@@ -30,6 +30,14 @@ class Project():
             totalEvents += category.getNumberOfEvents()
         return totalEvents
     
+    #Get event by ID
+    def getEventByID(self, eventID: int):
+        for category in self.eventCategories:
+            event = category.getEventByID(eventID)
+            if event is not None:
+                return event
+        return None
+
     def to_dict(self) -> dict:
         '''Return a JSON representation of the project object (uses the eventCategory and VideoInfo to_dict method). Contains filepath, 
         projectName, videoInfo and eventCategories'''

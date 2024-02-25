@@ -11,7 +11,10 @@ class Event():
     def getFrameNo(self) -> int:
         return self.frameNumber
     
-        
+    @property
+    def getDuration(self) -> int:
+        return self.duration
+    
     @property
     def get_id(self) -> int:
         return self.id

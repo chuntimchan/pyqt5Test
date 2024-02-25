@@ -1,5 +1,5 @@
 {
-    "filepath": "C:/Users/chunt/OneDrive/Desktop/pyqt5Test",
+    "filepath": "C:/Users/chunt/OneDrive/Desktop/pyqt5Test/TestSnippet",
     "projectName": "TestSnippet",
     "videoInfo": {
         "name": "Y2meta.app - Jeremy Renner\u2019s Rescue_ WATCH the Dramatic Bodycam Footage.mp4",
@@ -7,5 +7,22 @@
         "framerate": 29.97002997002997,
         "filepath": "C:/Users/chunt/OneDrive/Desktop/pyqt5Test/videos/Y2meta.app - Jeremy Renner\u2019s Rescue_ WATCH the Dramatic Bodycam Footage.mp4"
     },
-    "eventCategories": []
+    "eventCategories": [
+        {
+            "categoryName": "test",
+            "colour": "#ff0000",
+            "eventsList": [
+                {
+                    "id": 0,
+                    "frameNumber": 802,
+                    "duration": 60
+                },
+                {
+                    "id": 1,
+                    "frameNumber": 1844,
+                    "duration": 60
+                }
+            ]
+        }
+    ]
 }

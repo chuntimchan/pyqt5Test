@@ -36,6 +36,12 @@ class EventCategory():
             'eventsList': [event.to_dict() for event in self.eventsList],
         }
 
+    #Get event by ID
+    def getEventByID(self, eventID: int):
+        for event in self.eventsList:
+            if event.get_id == eventID:
+                return event
+        return None
 
 
     

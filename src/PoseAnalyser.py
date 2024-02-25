@@ -266,11 +266,11 @@ class PoseAnalyser(QMainWindow):
 
     
     def playVideoSnippets(self):
-        #Make 2 cv2 video objects and default them to 5 second snippets at frame 0 and at frame 100
-        cap2 = cv2.VideoCapture(self.project.videoInfo.filepath)
-        cap3 = cv2.VideoCapture(self.project.videoInfo.filepath)
-        self.left_video.set_video_event(cap2)
-        self.right_video.set_video_event(cap3)
+        if(self.left_video.checkbox.isChecked()):
+            self.left_video.play_video()
+        if(self.right_video.checkbox.isChecked()):
+            self.right_video.play_video()
+
 
     def nextVideoSnippets(self):
         if(self.left_video.checkbox.isChecked()):
@@ -289,11 +289,6 @@ class PoseAnalyser(QMainWindow):
         
         #All the clearing also moved to open project
         #Clear Events Tree and Event Combo Box and Markers
-        # self.event_tree.clear()
-        # self.videoSlider.setMarkers([])
-        # self.event_category_combo_box.clear()
-        # self.event_category_combo_box.addItem("Add New Event Category")
-        #Clear Video Info and Event category variables
         self.project.videoInfo = videoInfo.VideoInfo("",0,0,"")
         
         self.currentFrame = 0
@@ -320,7 +315,7 @@ class PoseAnalyser(QMainWindow):
         self.timer.timeout.connect(self.nextFrameSlot)
 
         #Display next frame
-        self.nextFrameSlot()
+        self.currentFrame = self.nextFrameSlot()
 
     #Pose Estimation Function
     def pose_estimate(self, frame):
@@ -347,13 +342,15 @@ class PoseAnalyser(QMainWindow):
     #Reads the next frame of the cap (OpenCV Video Object) and sets the label's image to it
     def nextFrameSlot(self,video_label = None,video_object = None,video_slider = None,to_pose_estimate = None,end_frame = None,frame_number = None) -> int:
         #Default video label if not given is self.videoLabel
-        if (video_label is None) or (video_object is None) or (video_slider is None):
+        mainView = False
+        if (video_label is None):
             video_label = self.videoLabel
             video_object = self.cap
             video_slider = self.videoSlider
             to_pose_estimate = self.to_pose_estimate
             end_frame = self.cap.get(cv2.CAP_PROP_FRAME_COUNT)
             frame_number = self.currentFrame
+            mainView = True
 
         #Code duplication with display_current_frame as calling display current frame from next frame slot constantly heavily slows down the video
         if(end_frame > frame_number + 1):
@@ -365,6 +362,7 @@ class PoseAnalyser(QMainWindow):
                 frame = webcam_pose_head_tracking.add_pose(frame,self.model)
 
             video_slider.setValue(frame_number)
+            print("Main nextframeslot method. Video Object Frame Number:", video_object.get(cv2.CAP_PROP_POS_FRAMES))
             if success:
                 #OpenCV Label Magic to convert to QImage and display in QLabel
                 rgbImage = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -373,6 +371,8 @@ class PoseAnalyser(QMainWindow):
                 convertToQtFormat = QImage(rgbImage.data, w, h, bytesPerLine, QImage.Format_RGB888)
                 p = convertToQtFormat.scaled(video_label.width(), video_label.height(), Qt.KeepAspectRatio)
                 video_label.setPixmap(QPixmap.fromImage(p))
+                if(mainView):
+                    self.currentFrame = frame_number
                 return frame_number
         
         return end_frame
@@ -529,6 +529,8 @@ class PoseAnalyser(QMainWindow):
                 print(type(event))
                 event_tree_item = QTreeWidgetItem(category_tree_item)
                 event_tree_item.setText(0, ("ID:%s , FrameNumber:%s" % (event.get_id,event.getFrameNo)))
+                #Add right click functionality tree widget item
+                
 
         self.event_tree.expandAll()
 
@@ -756,15 +758,11 @@ class PoseAnalyser(QMainWindow):
                 return
         
         #Save the project to the project directory
-        with open(self.project.filepath + "/" + self.project.projectName + "/"+ save_file_name, 'w') as f:
+        with open(self.project.filepath + "/" + save_file_name, 'w') as f:
             json.dump(self.project.to_dict(), f, indent=4)
 
         #Show a messagebox to confirm the project has been saved
         QMessageBox.information(self, "Project Saved", "Project saved at " + self.project.filepath +"/"+ save_file_name)
-
-        
-        
-        
 
     def closeEvent(self, event):
         #Check if there are currently any events in the project and if there are any unsaved events
@@ -835,17 +833,19 @@ class PoseAnalyser(QMainWindow):
 class EventTabSlider(QWidget):
     '''This class is a custom widget which is a horizontal layout with a checkbox and a slider'''
     id_obj = itertools.count()
+    timer : QTimer = QTimer()
 
-    def __init__(self,poseAnalyserInstance=None):
+    def __init__(self,poseAnalyserInstance : PoseAnalyser=None):
         super().__init__()
         self.init_ui()
         self.id = next(EventTabSlider.id_obj)
         self.poseAnalyserInstance = poseAnalyserInstance
         self.videoEvent : cv2.VideoCapture = None
-        self.videoStartFrame = 0
-        self.videoEndFrame = 0
-        self.frame_number = 0
-    
+        self.videoStartFrame : int  = 0
+        self.videoEndFrame : int = 0
+        self.frame_number : int = 0
+        self.event : event.Event = None
+
     def init_ui(self):
         #Create a Vertical layout for the event editor
         self.event_editor_layout = QVBoxLayout(self)
@@ -856,10 +856,24 @@ class EventTabSlider(QWidget):
         #Add the video label to the vertical layout
         self.event_editor_layout.addWidget(self.video_label)
 
+        #Make a horizontal layout to hold checkbox and button
+        self.checkbox_layout = QHBoxLayout()
+        
         #Add a Qcheckbox to the vertical layout
         self.checkbox = QCheckBox("Control Event")
         self.checkbox.setChecked(True)
-        self.event_editor_layout.addWidget(self.checkbox)
+
+        #Add a button beside the checkbox to add selected event
+        self.select_event = QPushButton("Select Event")
+        self.select_event.setFixedSize(100, 50)
+        self.select_event.clicked.connect(self.add_event_to_video_box)
+
+        self.checkbox_layout.addWidget(self.checkbox)
+        self.checkbox_layout.addWidget(self.select_event)
+
+        #Add the horizontal layout to the vertical layout
+        self.event_editor_layout.addLayout(self.checkbox_layout)
+
         #Add a slider to the vertical layout
         self.slider = QSlider(Qt.Horizontal)
         self.event_editor_layout.addWidget(self.slider,alignment=Qt.AlignTop)
@@ -870,14 +884,16 @@ class EventTabSlider(QWidget):
 
         self.setLayout(self.event_editor_layout)
 
-    def set_video_event(self,videoEvent):
-        self.videoEvent : cv2.VideoCapture = videoEvent
+    def set_event(self,event : event.Event):
+        self.event = event
         #Mocking behaviour by setting the video 
-        self.set_duration(0,20)
+        self.set_duration(event.frameNumber,event.frameNumber + event.getDuration)
+        print("Set Event Frame Number: ", self.frame_number, "Event Frame Duration: ", event.getDuration)
         #Play next frame
         self.next_frame()
         #Print the current frame
-        print("Set Video: ", self.frame_number)
+        print("Set Event: ", self.frame_number)
+
 
     def get_duration(self):
         '''Returns the duration of the video in frames'''
@@ -888,13 +904,17 @@ class EventTabSlider(QWidget):
         self.videoStartFrame = videoStartFrame
         self.videoEndFrame = videoEndFrame
         self.frame_number = videoStartFrame
-        #Set the first frame of the video
+        self.slider.setRange(videoStartFrame,videoEndFrame)
+
+        self.videoEvent.set(cv2.CAP_PROP_POS_FRAMES, self.frame_number-1)
+
         
     #Makes the object's next_frame method call the poseAnalyserInstance's nextFrameSlot method using this video label
     def next_frame(self):
         self.frame_number = self.poseAnalyserInstance.nextFrameSlot(self.video_label,self.videoEvent,self.slider,False,self.videoEndFrame,self.frame_number) 
-        print(self.id)
-        print(self.frame_number)
+        print("View ID:", self.id, "Frame Number: ", self.frame_number)
+        if self.frame_number >= self.videoEndFrame:
+            self.pause()
 
     def prev_frame(self):
         self.videoEvent.set(cv2.CAP_PROP_POS_FRAMES, self.frame_number - 2)
@@ -903,12 +923,35 @@ class EventTabSlider(QWidget):
 
     def play_video(self):
         '''Plays the video'''
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.nextFrameSlot)
-        self.timer.start(1000/round(self.videoEvent.get(cv2.CAP_PROP_FPS)))
-        
+        self.timer.timeout.connect(self.next_frame)
+        self.timer.start(round(1000/round(self.poseAnalyserInstance.cap.get(cv2.CAP_PROP_FPS))))
 
+    def pause(self):
+        '''Pauses the video'''
+        self.timer.stop()
         
+    #Method to add the highlighted event into the videobox with multiple views
+    def add_event_to_video_box(self):
+        #Set videoEvent to the poseAnalyserInstance's videoEvent
+        self.videoEvent = cv2.VideoCapture(self.poseAnalyserInstance.project.videoInfo.filepath)
+
+        #Get selected event in event tree
+        selected_event = self.poseAnalyserInstance.event_tree.selectedItems()
+        if len(selected_event) == 0:
+            #Show message that no event is selected
+            QMessageBox.warning(self, "No Event Selected", "Please select an event to add to the video box.")
+            return
+        
+        #Get the selected event's text
+        selected_event_text = selected_event[0].text(0)
+
+        #Parse ID from the selected event's text
+        event_id = int(selected_event_text.split(',')[0].split(':')[1])
+
+        #Get the event from the project
+        selected_event = self.poseAnalyserInstance.project.getEventByID(event_id)
+
+        self.set_event(selected_event)
 
 if __name__ == '__main__':
     os.environ['QT_MULTIMEDIA_PREFERRED_PLUGINS'] = 'windowsmediafoundation'
