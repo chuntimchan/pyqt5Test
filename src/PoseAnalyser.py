@@ -1,12 +1,13 @@
 import sys, os, cv2, colorsys,json, shutil
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem,QApplication, QWidget,QComboBox, QHBoxLayout, QFrame, QVBoxLayout, QMainWindow, QLabel,QPushButton, QSpacerItem, QSizePolicy, QStyle, QSlider, QAction, QMessageBox, QInputDialog
+from PyQt5.QtWidgets import QCheckBox,QTabWidget,QTreeWidget, QTreeWidgetItem,QApplication, QWidget,QComboBox, QHBoxLayout, QFrame, QVBoxLayout, QMainWindow, QLabel,QPushButton, QSpacerItem, QSizePolicy, QStyle, QSlider, QAction, QMessageBox, QInputDialog
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QFileDialog
 from PyQt5.QtGui import QImage,QPixmap
 from src.MarkerSlider import MarkerSlider
 from classes import eventCategory,project,videoInfo, event
 from pose_estimator import webcam_pose_head_tracking
+import itertools
 
 class PoseAnalyser(QMainWindow):
     def __init__(self):
@@ -42,6 +43,10 @@ class PoseAnalyser(QMainWindow):
         event_layout.addWidget(self.event_tree)
         #--------------------------------------------------------------!
 
+        #Create a TabWidget to hold the main editor and a secondary editor
+        tab_widget = QTabWidget(self)
+        tab_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         # Create the main editor frame section------------------------+
         editor_frame = QFrame(self)
         editor_frame.setFrameShape(QFrame.StyledPanel)
@@ -50,6 +55,20 @@ class PoseAnalyser(QMainWindow):
 
         # Create a 2 vertical layouts for the editor_frame
         editor_layout = QHBoxLayout(editor_frame)
+
+        # Add the editor_frame to the tab_widget
+        tab_widget.addTab(editor_frame, "Editor")
+
+        # Add a second tab a vertical layout for the secondary editor
+        #Add a frame for the secondary editor
+        secondary_editor_frame = QFrame(self)
+        secondary_editor_frame.setFrameShape(QFrame.StyledPanel)
+        secondary_editor_frame.setFrameShadow(QFrame.Raised)
+        secondary_editor_frame.setLineWidth(2)
+
+        #New Vertical Layout for the event editor layout
+        event_editor_layout = QVBoxLayout(secondary_editor_frame)
+        tab_widget.addTab(secondary_editor_frame, "Secondary Editor")
 
         # |--1st vertical layout for the main video player--|
         video_layout = QVBoxLayout()
@@ -192,13 +211,73 @@ class PoseAnalyser(QMainWindow):
         editor_layout.addLayout(video_layout, 5)
         editor_layout.addLayout(pose_layout, 1)
         
+        # Populate the event editor layout
+        # Add 2 horizontal layouts for the event editor
+
+        # Create a horizontal layout for the event editor for a Double Video Viewer
+        double_video_viewer = QHBoxLayout()
+        double_video_viewer.setSpacing(0)
+        double_video_viewer.setContentsMargins(0, 0, 0, 0)
+
+        #Add 2 vertical layouts for the double video viewer
+        left_video_viewer = QVBoxLayout()
+        right_video_viewer = QVBoxLayout()
+        #Add a Small Margin to the vertical layouts
+        left_video_viewer.setContentsMargins(5, 0, 5, 0)
+        right_video_viewer.setContentsMargins(5, 0, 5, 0)
+
+        #Add slider and checkbox to the vertical layouts using the custom widget
+        self.left_video = EventTabSlider(self)
+        self.right_video = EventTabSlider(self)
+
+        left_video_viewer.addWidget(self.left_video)
+        right_video_viewer.addWidget(self.right_video)
+
+        #Add the vertical layouts to the event editor layout
+        double_video_viewer.addLayout(left_video_viewer)
+        double_video_viewer.addLayout(right_video_viewer)
+
+        # Create a horizontal layout for the event editor for the video controls
+        video_controls = QHBoxLayout()
+        video_controls.setSpacing(0)
+        video_controls.setContentsMargins(0, 0, 0, 0)
+
+        #Add video control buttons to the horizontal layout
+        video_controls.addWidget(QPushButton("Skip Backward"))
+        video_controls.addWidget(QPushButton("Rewind"))
+        twoWindow_playBtn = QPushButton("Play")
+        twoWindow_playBtn.clicked.connect(self.playVideoSnippets)
+        video_controls.addWidget(twoWindow_playBtn)
+        twoWindowNextBtn = QPushButton("Next")
+        twoWindowNextBtn.clicked.connect(self.nextVideoSnippets)
+        video_controls.addWidget(twoWindowNextBtn)
+        video_controls.addWidget(QPushButton("Skip Forward"))
+
+        
+        # Add the horizontal layouts to the event editor layout
+        event_editor_layout.addLayout(double_video_viewer)
+        event_editor_layout.addLayout(video_controls)
+
         #-------------------------------------------------------------!
 
         main_layout.addWidget(event_frame,1)
-        main_layout.addWidget(editor_frame,5)
+        main_layout.addWidget(tab_widget)
         
 
     
+    def playVideoSnippets(self):
+        #Make 2 cv2 video objects and default them to 5 second snippets at frame 0 and at frame 100
+        cap2 = cv2.VideoCapture(self.project.videoInfo.filepath)
+        cap3 = cv2.VideoCapture(self.project.videoInfo.filepath)
+        self.left_video.set_video_event(cap2)
+        self.right_video.set_video_event(cap3)
+
+    def nextVideoSnippets(self):
+        if(self.left_video.checkbox.isChecked()):
+            self.left_video.next_frame()
+        if(self.right_video.checkbox.isChecked()):
+            self.right_video.next_frame()
+
     def duration_changed(self, duration):
         self.videoSlider.setRange(0, duration)
 
@@ -221,7 +300,7 @@ class PoseAnalyser(QMainWindow):
 
         #Opens Video CV2
         self.cap = cv2.VideoCapture(filename)
-
+        
         #Sets label name
         self.videoName.setText(filename)
         #Enable Play Skip Buttons
@@ -266,25 +345,37 @@ class PoseAnalyser(QMainWindow):
             self.videoLabel.setPixmap(QPixmap.fromImage(p))
 
     #Reads the next frame of the cap (OpenCV Video Object) and sets the label's image to it
-    def nextFrameSlot(self):
+    def nextFrameSlot(self,video_label = None,video_object = None,video_slider = None,to_pose_estimate = None,end_frame = None,frame_number = None) -> int:
+        #Default video label if not given is self.videoLabel
+        if (video_label is None) or (video_object is None) or (video_slider is None):
+            video_label = self.videoLabel
+            video_object = self.cap
+            video_slider = self.videoSlider
+            to_pose_estimate = self.to_pose_estimate
+            end_frame = self.cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            frame_number = self.currentFrame
+
         #Code duplication with display_current_frame as calling display current frame from next frame slot constantly heavily slows down the video
-        if(self.cap.get(cv2.CAP_PROP_FRAME_COUNT) > self.currentFrame + 1):
-            self.currentFrame += 1
-            success, frame = self.cap.read()
+        if(end_frame > frame_number + 1):
+            frame_number += 1
+            success, frame = video_object.read()
 
             #Pose Estimation
-            if self.to_pose_estimate:
+            if to_pose_estimate:
                 frame = webcam_pose_head_tracking.add_pose(frame,self.model)
 
-            self.videoSlider.setValue(self.currentFrame)
+            video_slider.setValue(frame_number)
             if success:
                 #OpenCV Label Magic to convert to QImage and display in QLabel
                 rgbImage = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 h, w, ch = rgbImage.shape
                 bytesPerLine = ch * w
                 convertToQtFormat = QImage(rgbImage.data, w, h, bytesPerLine, QImage.Format_RGB888)
-                p = convertToQtFormat.scaled(self.videoLabel.width(), self.videoLabel.height(), Qt.KeepAspectRatio)
-                self.videoLabel.setPixmap(QPixmap.fromImage(p))
+                p = convertToQtFormat.scaled(video_label.width(), video_label.height(), Qt.KeepAspectRatio)
+                video_label.setPixmap(QPixmap.fromImage(p))
+                return frame_number
+        
+        return end_frame
 
     #Skips back a frame
     def prevFrameSlot(self):
@@ -474,21 +565,11 @@ class PoseAnalyser(QMainWindow):
         file_menu.addAction(open_project_action)
         open_project_action.triggered.connect(self.open_project)
 
-        #Open File
-        # open_video_action = QAction('Open Video', self)
-        # file_menu.addAction(open_video_action)
-        # open_video_action.triggered.connect(self.open_file)
-
         #Save Project
         self.save_project_action = QAction('Save Project', self)
         file_menu.addAction(self.save_project_action)
         self.save_project_action.triggered.connect(self.save_project)
         
-        #Load Events File
-        # self.load_events_action = QAction('Load Events File', self)
-        # file_menu.addAction(self.load_events_action)
-        # self.load_events_action.triggered.connect(self.load_events_file)
-
         #Frame Skip Number
         set_frame_skip_size_action = QAction('Set Frame Skip Size', self)
         settings_menu.addAction(set_frame_skip_size_action)
@@ -517,7 +598,6 @@ class PoseAnalyser(QMainWindow):
             return
                 
         #Check if a events json file exists in the directory
-        events_file_exists = False
         events_file_path = ""
         events_files_number = 0
         for file in os.listdir(project_path):
@@ -636,53 +716,6 @@ class PoseAnalyser(QMainWindow):
 
         print(type(self.project.videoInfo))
 
-        
-        # errors = []
-
-        # if data['videoInfo']['filepath'] != self.project.videoInfo.getFilepath:
-        #     errors.append("The filepath in the events json does not match the current video's filepath.")
-
-        # if data['videoInfo']['name'] != self.project.videoInfo.getName:
-        #     errors.append("The name in the events json does not match the current video's name.")
-
-        # if data['videoInfo']['length'] != self.project.videoInfo.getLength:
-        #     errors.append("The length in the events json does not match the current video's length.")
-
-        # if errors:
-        #     #If the only error is the filepath error allow the user to continue if they choose to and update the project video info file path
-        #     if len(errors) == 1 and errors[0] == "The filepath in the events json does not match the current video's filepath.":
-        #         msg = QMessageBox()
-        #         msg.setIcon(QMessageBox.Warning)
-        #         msg.setText("The filepath in the events json does not match the current video's filepath. Do you want to continue?")
-        #         msg.setWindowTitle("Warning")
-        #         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-
-        #         retval = msg.exec_()
-        #         if retval == QMessageBox.No:
-        #             return
-        #         else:
-        #             #Set the events json file's filepath to the current video's filepath
-        #             data['videoInfo']['filepath'] = self.project.videoInfo.filepath
-
-        #     #Else show all errors and do not continue
-        #     else:
-        #         msg = QMessageBox()
-        #         msg.setIcon(QMessageBox.Information)
-        #         msg.setText("\n".join(errors))
-        #         msg.setWindowTitle("Information")
-        #         msg.setStandardButtons(QMessageBox.Ok)
-
-        #         retval = msg.exec_()
-        #         return
-
-
-        # print("Matched")
-        #Clear Events Tree and Event Combo Box and Markers
-        self.event_tree.clear()
-        self.videoSlider.setMarkers([])
-        self.event_category_combo_box.clear()
-        self.event_category_combo_box.addItem("Add New Event Category")
-
         #Clear project and subsiquent nested objects are created
         self.project = project.Project(**data)
 
@@ -711,7 +744,7 @@ class PoseAnalyser(QMainWindow):
 
         # Check if the file already exists in the project directory
 
-        if os.path.exists(self.project.filepath +"/"+ save_file_name):
+        if os.path.exists(self.project.filepath + "/" + self.project.projectName + "/"+ save_file_name):
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Warning)
             msg.setText("The file already exists. Do you want to overwrite it?")
@@ -723,7 +756,7 @@ class PoseAnalyser(QMainWindow):
                 return
         
         #Save the project to the project directory
-        with open(self.project.filepath +"/"+ save_file_name, 'w') as f:
+        with open(self.project.filepath + "/" + self.project.projectName + "/"+ save_file_name, 'w') as f:
             json.dump(self.project.to_dict(), f, indent=4)
 
         #Show a messagebox to confirm the project has been saved
@@ -797,6 +830,85 @@ class PoseAnalyser(QMainWindow):
         self.show_pose_button.setEnabled(True)
         self.detect_pose_button.setEnabled(True)
         self.show_pose_only_button.setEnabled(True)
+
+#Create a custom widget 
+class EventTabSlider(QWidget):
+    '''This class is a custom widget which is a horizontal layout with a checkbox and a slider'''
+    id_obj = itertools.count()
+
+    def __init__(self,poseAnalyserInstance=None):
+        super().__init__()
+        self.init_ui()
+        self.id = next(EventTabSlider.id_obj)
+        self.poseAnalyserInstance = poseAnalyserInstance
+        self.videoEvent : cv2.VideoCapture = None
+        self.videoStartFrame = 0
+        self.videoEndFrame = 0
+        self.frame_number = 0
+    
+    def init_ui(self):
+        #Create a Vertical layout for the event editor
+        self.event_editor_layout = QVBoxLayout(self)
+
+        #Create the videolabel
+        self.video_label = QLabel("Video Label")
+
+        #Add the video label to the vertical layout
+        self.event_editor_layout.addWidget(self.video_label)
+
+        #Add a Qcheckbox to the vertical layout
+        self.checkbox = QCheckBox("Control Event")
+        self.checkbox.setChecked(True)
+        self.event_editor_layout.addWidget(self.checkbox)
+        #Add a slider to the vertical layout
+        self.slider = QSlider(Qt.Horizontal)
+        self.event_editor_layout.addWidget(self.slider,alignment=Qt.AlignTop)
+
+        #Remove space between the widgets
+        self.event_editor_layout.setSpacing(0)
+        self.event_editor_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.setLayout(self.event_editor_layout)
+
+    def set_video_event(self,videoEvent):
+        self.videoEvent : cv2.VideoCapture = videoEvent
+        #Mocking behaviour by setting the video 
+        self.set_duration(0,20)
+        #Play next frame
+        self.next_frame()
+        #Print the current frame
+        print("Set Video: ", self.frame_number)
+
+    def get_duration(self):
+        '''Returns the duration of the video in frames'''
+        return self.videoEndFrame - self.videoStartFrame
+    
+    def set_duration(self,videoStartFrame,videoEndFrame):
+        '''Sets the duration of the video in frames'''
+        self.videoStartFrame = videoStartFrame
+        self.videoEndFrame = videoEndFrame
+        self.frame_number = videoStartFrame
+        #Set the first frame of the video
+        
+    #Makes the object's next_frame method call the poseAnalyserInstance's nextFrameSlot method using this video label
+    def next_frame(self):
+        self.frame_number = self.poseAnalyserInstance.nextFrameSlot(self.video_label,self.videoEvent,self.slider,False,self.videoEndFrame,self.frame_number) 
+        print(self.id)
+        print(self.frame_number)
+
+    def prev_frame(self):
+        self.videoEvent.set(cv2.CAP_PROP_POS_FRAMES, self.frame_number - 2)
+        self.frame_number -= 2
+        self.frame_number = self.poseAnalyserInstance.nextFrameSlot(self.video_label,self.videoEvent,self.slider,False,self.videoEndFrame,self.frame_number)
+
+    def play_video(self):
+        '''Plays the video'''
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.nextFrameSlot)
+        self.timer.start(1000/round(self.videoEvent.get(cv2.CAP_PROP_FPS)))
+        
+
+        
 
 if __name__ == '__main__':
     os.environ['QT_MULTIMEDIA_PREFERRED_PLUGINS'] = 'windowsmediafoundation'
