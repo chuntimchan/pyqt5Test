@@ -30,7 +30,9 @@ def load_model():
 	dims_2d = 32
 	model = senet_feedback.SEFeedback(feedback_cycles, feedback_norm, disable_se_layer,dims_2d+dims_3d)
 
-	model_path = 'pose_estimator/model/pose_model.pyth'   # trained on h36m and mpii for 32 epochs and L1 norm cost function
+	model_path = "pyqt5Test\pose_estimator\model\pose_model.pyth"
+ 	# trained on h36m and mpii for 32 epochs and L1 norm cost function
+	#model_path = 'pose_estimator/model/pose_model.pyth'   # trained on h36m and mpii for 32 epochs and L1 norm cost function
 
 	print('loading',model_path)
 	model.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage))
