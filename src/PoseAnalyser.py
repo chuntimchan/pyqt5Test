@@ -45,8 +45,9 @@ class PoseAnalyser(QMainWindow):
         #--------------------------------------------------------------!
 
         #Create a TabWidget to hold the main editor and a secondary editor
-        tab_widget = QTabWidget(self)
-        tab_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.tab_widget = QTabWidget(self)
+        self.tab_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.tab_widget.currentChanged.connect(self.on_tab_changed)
 
         # Create the main editor frame section------------------------+
         editor_frame = QFrame(self)
@@ -58,7 +59,7 @@ class PoseAnalyser(QMainWindow):
         editor_layout = QHBoxLayout(editor_frame)
 
         # Add the editor_frame to the tab_widget
-        tab_widget.addTab(editor_frame, "Editor")
+        self.tab_widget.addTab(editor_frame, "Editor")
 
         # Add a second tab a vertical layout for the secondary editor
         #Add a frame for the secondary editor
@@ -69,7 +70,7 @@ class PoseAnalyser(QMainWindow):
 
         #New Vertical Layout for the event editor layout
         event_editor_layout = QVBoxLayout(secondary_editor_frame)
-        tab_widget.addTab(secondary_editor_frame, "Secondary Editor")
+        self.tab_widget.addTab(secondary_editor_frame, "Secondary Editor")
 
         # |--1st vertical layout for the main video player--|
         video_layout = QVBoxLayout()
@@ -245,7 +246,10 @@ class PoseAnalyser(QMainWindow):
 
         #Add video control buttons to the horizontal layout
         video_controls.addWidget(QPushButton("Skip Backward"))
-        video_controls.addWidget(QPushButton("Rewind"))
+        #Previous button
+        twoWindow_prevBtn = QPushButton("Previous")
+        twoWindow_prevBtn.clicked.connect(self.prevVideoSnippets)
+        video_controls.addWidget(twoWindow_prevBtn)
         twoWindow_playBtn = QPushButton("Play")
         twoWindow_playBtn.clicked.connect(self.playVideoSnippets)
         video_controls.addWidget(twoWindow_playBtn)
@@ -262,7 +266,7 @@ class PoseAnalyser(QMainWindow):
         #-------------------------------------------------------------!
 
         main_layout.addWidget(event_frame,1)
-        main_layout.addWidget(tab_widget)
+        main_layout.addWidget(self.tab_widget)
         
 
     
@@ -278,6 +282,13 @@ class PoseAnalyser(QMainWindow):
             self.left_video.next_frame()
         if(self.right_video.checkbox.isChecked()):
             self.right_video.next_frame()
+
+    def prevVideoSnippets(self):
+        '''Prev Video Snippets'''
+        if(self.left_video.checkbox.isChecked()):
+            self.left_video.prev_frame()
+        if(self.right_video.checkbox.isChecked()):
+            self.right_video.prev_frame()
 
     def duration_changed(self, duration):
         self.videoSlider.setRange(0, duration)
@@ -758,7 +769,7 @@ class PoseAnalyser(QMainWindow):
                 return
         
         #Save the project to the project directory
-        with open(self.project.filepath + "/" + save_file_name, 'w') as f:
+        with open(self.project.filepath + "/" + self.project.projectName + "/" + save_file_name, 'w') as f:
             json.dump(self.project.to_dict(), f, indent=4)
 
         #Show a messagebox to confirm the project has been saved
@@ -811,6 +822,9 @@ class PoseAnalyser(QMainWindow):
         self.show_pose_button.setEnabled(False)
         self.detect_pose_button.setEnabled(False)
         self.show_pose_only_button.setEnabled(False)
+        self.load_events_button.setEnabled(False)
+        #Disable secondary editor tab
+        self.tab_widget.setTabEnabled(1, False)
 
     #Enable Play Control Buttons and Add Event Button
     def enable_buttons(self):
@@ -828,6 +842,18 @@ class PoseAnalyser(QMainWindow):
         self.show_pose_button.setEnabled(True)
         self.detect_pose_button.setEnabled(True)
         self.show_pose_only_button.setEnabled(True)
+        #Enable secondary editor tab
+        self.tab_widget.setTabEnabled(1, True)
+
+    #When the tab is changed
+    def on_tab_changed(self, index):
+        #If the tab is in the main editor
+        if index == 1:
+            #Check if the timer exists without using the timer variable
+            if hasattr(self, 'timer'):
+                #If the timer is running pause the video
+                if self.timer.isActive():
+                    self.pause()
 
 #Create a custom widget 
 class EventTabSlider(QWidget):
@@ -905,14 +931,12 @@ class EventTabSlider(QWidget):
         self.videoEndFrame = videoEndFrame
         self.frame_number = videoStartFrame
         self.slider.setRange(videoStartFrame,videoEndFrame)
-
         self.videoEvent.set(cv2.CAP_PROP_POS_FRAMES, self.frame_number-1)
 
-        
     #Makes the object's next_frame method call the poseAnalyserInstance's nextFrameSlot method using this video label
     def next_frame(self):
         self.frame_number = self.poseAnalyserInstance.nextFrameSlot(self.video_label,self.videoEvent,self.slider,False,self.videoEndFrame,self.frame_number) 
-        print("View ID:", self.id, "Frame Number: ", self.frame_number)
+        print("View ID:", self.id, "Frame Number: ", self.frame_number, "Video EndFrame: ", self.videoEndFrame)
         if self.frame_number >= self.videoEndFrame:
             self.pause()
 
@@ -925,6 +949,7 @@ class EventTabSlider(QWidget):
         '''Plays the video'''
         self.timer.timeout.connect(self.next_frame)
         self.timer.start(round(1000/round(self.poseAnalyserInstance.cap.get(cv2.CAP_PROP_FPS))))
+        print("GADFADFDASF")
 
     def pause(self):
         '''Pauses the video'''
@@ -953,6 +978,14 @@ class EventTabSlider(QWidget):
 
         self.set_event(selected_event)
 
+    #Future Works
+    # #Slider changed
+    # def slider_change_snippet(self):
+    #     self.frame_number = self.slider.value()
+    #     self.videoEvent.set(cv2.CAP_PROP_POS_FRAMES, self.frame_number-1)
+    #     self.frame_number = self.poseAnalyserInstance.display_current_frame(self.video_label,self.videoEvent,self.slider,False,self.videoEndFrame,self.frame_number)
+
+        
 if __name__ == '__main__':
     os.environ['QT_MULTIMEDIA_PREFERRED_PLUGINS'] = 'windowsmediafoundation'
     app = QApplication(sys.argv)
