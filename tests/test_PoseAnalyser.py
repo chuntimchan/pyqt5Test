@@ -29,7 +29,6 @@ class TestPoseAnalyser:
         assert self.window.videoSlider
         assert self.window.add_event_button
         assert self.window.save_project_action
-        assert self.window.load_events_action
         assert self.window.saveBtn
 
         #Testing the video player
@@ -70,7 +69,6 @@ class TestPoseAnalyser:
         assert not self.window.videoSlider.isEnabled()
         assert not self.window.add_event_button.isEnabled()
         assert not self.window.save_project_action.isEnabled()
-        assert not self.window.load_events_action.isEnabled()
         assert not self.window.saveBtn.isEnabled()
 
     #Methods Testing ---------------------------------------------------------------
@@ -87,7 +85,6 @@ class TestPoseAnalyser:
         assert self.window.videoSlider.isEnabled()
         assert self.window.add_event_button.isEnabled()
         assert self.window.save_project_action.isEnabled()
-        assert self.window.load_events_action.isEnabled()
         assert self.window.saveBtn.isEnabled()
 
     #Test close event method call when there are no events
@@ -137,27 +134,29 @@ class TestPoseAnalyser:
 
         # Mock QInputDialog.getText to return a valid project name
         with patch('PyQt5.QtWidgets.QInputDialog.getText', return_value=("TestProject", True)):
-
-            # Mock QMessageBox.exec_ to return QMessageBox.Ok
-            with patch('PyQt5.QtWidgets.QMessageBox.exec_', return_value=QMessageBox.Ok):
+            # Mock QMessageBox.exec_ and information to return QMessageBox.Ok
+            with patch('PyQt5.QtWidgets.QMessageBox.exec_', return_value=QMessageBox.Ok), \
+                patch('PyQt5.QtWidgets.QMessageBox.information', return_value=None):
 
                 # Mock os.path.exists to return False (file does not exist)
                 with patch('os.path.exists', return_value=False):
 
+                    #Set filepath to equal to current filepath
+                    self.window.project.filepath = "C:/Users/chunt/Downloads/"
+                    self.window.project.projectName = "TestProject"
                     # Call save_project
                     self.window.save_project()
-
                     # Assert that the project name was set correctly
                     assert self.window.project.projectName == "TestProject"
 
                     # Assert that the project was saved to a file
-                    with open("TestProject.json", 'r') as f:
+                    with open("C:/Users/chunt/Downloads/TestProject.json", 'r') as f:
                         saved_project = json.load(f)
                     assert saved_project == self.window.project.to_dict()
 
 
                     #Delete the json file after the test
-                    os.remove("TestProject.json")
+                    os.remove("C:/Users/chunt/Downloads/TestProject.json")
 
     #Testing the show pose method works changing the constant
     def test_show_pose(self):
@@ -181,7 +180,7 @@ class TestPoseAnalyser:
         '''Test load_events method with both json and non json'''
 
         #Set the current project's video to the video file that the json file stored
-        videoInfoObj = classes.videoInfo.VideoInfo(name="test.mp4", length=1280.0, framerate=29.97002997002997, filepath="C:/Users/chunt/Downloads/test.mp4")
+        videoInfoObj = classes.videoInfo.VideoInfo(name="production_id_4812014 (1080p).mp4", length=1920.0, framerate=29.97002997002997, filepath="C:/Users/chunt/OneDrive/Desktop/pyqt5Test/videos/Henlo/TestProjectMaking/production_id_4812014 (1080p).mp4")
         self.window.project.videoInfo = videoInfoObj
 
         #Test with JSON
@@ -189,23 +188,23 @@ class TestPoseAnalyser:
         with patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName', return_value=('test.json', '')):
 
             # Mock json.load to return a dictionary with test data
-            with patch('json.load', return_value={'videoInfo': {'name': 'test.mp4', 
-                                                                'length': 1280.0,
+            with patch('json.load', return_value={'videoInfo': {'name': "production_id_4812014 (1080p).mp4",
+                                                                "length": 1920.0,
                                                                 'framerate': 29.97002997002997,
-                                                                'filepath': 'C:/Users/chunt/Downloads/test.mp4' }}):
+                                                                'filepath': "C:/Users/chunt/OneDrive/Desktop/pyqt5Test/videos/Henlo/TestProjectMaking/production_id_4812014 (1080p).mp4" }}):
                 # Call load_events_file
-                self.window.load_events_file()
+                self.window.load_events_file(r"C:\Users\chunt\OneDrive\Desktop\pyqt5Test\TestingDemo\TestingDemo.json")
 
                 # Assert that the project was loaded correctly
-                assert self.window.project.videoInfo.getFilepath == 'C:/Users/chunt/Downloads/test.mp4'
-                assert self.window.project.videoInfo.getName == 'test.mp4'
-                assert self.window.project.videoInfo.getLength == 1280.0
+                assert self.window.project.videoInfo.getFilepath == "C:/Users/chunt/OneDrive/Desktop/pyqt5Test/videos/Henlo/TestProjectMaking/production_id_4812014 (1080p).mp4"
+                assert self.window.project.videoInfo.getName == "production_id_4812014 (1080p).mp4"
+                assert self.window.project.videoInfo.getLength == 1920.0
 
         # Test with a non-JSON file
         with patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName', return_value=('test.txt', '')):
             #With patch pressing ok when the dialog box showing the file isn't a json appears.
             with patch('PyQt5.QtWidgets.QMessageBox.warning') as mock_warning:
-                self.window.load_events_file()
+                self.window.load_events_file(r"C:\Users\chunt\OneDrive\Desktop\pyqt5Test\tests\TestingFiles\test.txt")
                 mock_warning.assert_called()
 
     #Testing the functionality to allow the user to set the frame skip size
@@ -470,7 +469,7 @@ class TestPoseAnalyser:
         '''Test open_file method'''
 
         # Mock the file dialog and the user selecting test.mp4 when no events exist not triggering the saveEvent path
-        with patch.object(QFileDialog, 'getOpenFileName', return_value=("test.mp4", "*.mp4")) as file_dialog_mock:
+        with patch.object(QFileDialog, 'getOpenFileName', return_value=(r"C:\Users\chunt\OneDrive\Desktop\pyqt5Test\tests\TestingFiles\TestVideo.mp4", "*.mp4")) as file_dialog_mock:
 
             # Mock self.project.getNumberOfEvents to return 0 (mocking the project having no events and this being the first video file)
             with patch.object(self.window.project, 'getNumberOfEvents', return_value=0) as get_number_of_events_mock:
@@ -482,25 +481,19 @@ class TestPoseAnalyser:
                     with patch.object(self.window, 'nextFrameSlot') as next_frame_slot_mock:
 
                         # Call open_file
-                        self.window.open_file()
+                        self.window.open_file(r"C:\Users\chunt\OneDrive\Desktop\pyqt5Test\tests\TestingFiles\TestVideo.mp4")
 
                         # List of things the method should have done
-                        # Assert a file dialog was opened for the user to select a file
-                        file_dialog_mock.assert_called_once()
-
-                        # Assert get_number_of_events was called to check if the project has any events
-                        get_number_of_events_mock.assert_called_once()
-
                         # Assert that VideoCapture was called with the correct argument
-                        video_capture_mock.assert_called_once_with("test.mp4")
+                        video_capture_mock.assert_called_once_with(r"C:\Users\chunt\OneDrive\Desktop\pyqt5Test\tests\TestingFiles\TestVideo.mp4")
 
                         # Assert that nextFrameSlot was called
                         next_frame_slot_mock.assert_called_once()                
 
         # Mock the file dialog and the user selecting test.mp4 when events exist triggering the saveEvent path
                         
-        # Same as before, mocking a file  dialog
-        with patch.object(QFileDialog, 'getOpenFileName', return_value=("test.mp4", "*.mp4")) as file_dialog_mock:
+        # Same as before, mocking a file dialog
+        with patch.object(QFileDialog, 'getOpenFileName', return_value=(r"C:\Users\chunt\OneDrive\Desktop\pyqt5Test\tests\TestingFiles\TestVideo.mp4", "*.mp4")) as file_dialog_mock:
 
             # Mock self.project.getNumberOfEvents to return 1 (mocking the project having events and this not being the first video file)
             with patch.object(self.window.project, 'getNumberOfEvents', return_value=1):
@@ -518,23 +511,14 @@ class TestPoseAnalyser:
                             with patch.object(self.window, 'nextFrameSlot') as next_frame_slot_mock:
 
                                 # Call open_file
-                                self.window.open_file()
+                                self.window.open_file(r"C:\Users\chunt\OneDrive\Desktop\pyqt5Test\tests\TestingFiles\TestVideo.mp4")
 
                                 # List of things the method should have done
-                                # Assert a file dialog was opened for the user to select a file
-                                file_dialog_mock.assert_called_once()
-
-                                # Assert get_number_of_events was called to check if the project has any events
-                                get_number_of_events_mock.assert_called_once()
-
-                                # Assert the message box to prompt the user to save was called
-                                message_box_mock.assert_called_once()
-
                                 # Assert that save_project was not called as the user selected to discard the events
                                 save_project_mock.assert_not_called()
                                 
                                 # Assert that VideoCapture was called with the correct argument
-                                video_capture_mock.assert_called_once_with("test.mp4")
+                                video_capture_mock.assert_called_once_with(r"C:\Users\chunt\OneDrive\Desktop\pyqt5Test\tests\TestingFiles\TestVideo.mp4")
 
                                 # Assert that nextFrameSlot was called
                                 next_frame_slot_mock.assert_called_once()

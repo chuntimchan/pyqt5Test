@@ -40,66 +40,12 @@ def load_model():
 	print('model loaded')
 	return model
 
-def get_pose(frame : np.ndarray,model : nn.Module):
-	cascade_root = cv2.data.haarcascades #My path to the cascade files from where cv2 is downloaded
-	face_cascade = cv2.CascadeClassifier(cascade_root + 'haarcascade_frontalface_default.xml')
-	#face_cascade = cv2.CascadeClassifier(cascade_root + 'haarcascade_upperbody.xml')
-	#face_cascade = cv2.CascadeClassifier(cascade_root + 'haarcascade_fullbody.xml')
-	#cap = cv2.VideoCapture(r'C:\Users\chunt\Downloads\Y2meta.app - Jeremy Renner’s Rescue_ WATCH the Dramatic Bodycam Footage.mp4')
-	cap = cv2.VideoCapture(r'C:\Users\chunt\Downloads\Shawshank pt1.mp4')
-
-	img = frame
-
-	# Our operations on the frame come here
-	gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-	detections = face_cascade.detectMultiScale(gray, 1.3, 4, minSize=(10,10), maxSize=(200,200))
-
-	if len(detections) > 0:
-		for (x,y,w,h) in detections:
-			cv2.rectangle(img,(x,y),(x+w,y+h),(255,0,0),2)
-
-			center_head_x = x + w//2
-			center_head_y = y + h//2
-			width_head = w
-			height_head = h
-
-			# from the head extrapolate to the full body size
-
-			h = height_head * 9.7
-			w = h
-
-			crop_size = int(h)
-
-			center_x = center_head_x
-			center_y = y + h // 2
-			y = (center_y - h // 2)
-			x = (center_x - h // 2)
-
-			cv2.rectangle(img,(int(x),int(y)),(int(x+w),int(y+h)),(0,255,0),2)
-			crop_img = img[int(y):int(y+h), int(x):int(x+w)]
-
-			if crop_img.shape[0] > 100 and crop_img.shape[1] > 100:
-				resized_img = cv2.resize(crop_img,(128,128))
-
-				# resized_img = cv2.resize(crop_img,(128,128))
-				rawImg = torch.from_numpy(resized_img)
-				rawImg = rawImg.permute((2,0,1))
-				rawImg = rawImg.float() / 255
-
-				output = model.forward(Variable(rawImg.unsqueeze(0), requires_grad=False))
-				output_2d = output[0][1]
-				output_2d = output_2d + 0.5
-				output_2d = torch.floor(output_2d * crop_size)
-
-				output_2d_x = output_2d[0][0:16] + int(x)
-				output_2d_y = output_2d[0][16:] + int(y)
-	return output_2d_x, output_2d_y
-
 #Same method as webcam pose but with a video file
 def add_pose(frame : np.ndarray,model : nn.Module):
-	cascade_root = cv2.data.haarcascades #My path to the cascade files from where cv2 is downloaded
-	face_cascade = cv2.CascadeClassifier(cascade_root + 'haarcascade_frontalface_default.xml')
+	print(cv2.__version__)
+	print(cv2.__file__)
+	# cascade_root = cv2.data.haarcascades #My path to the cascade files from where cv2 is downloaded
+	face_cascade = cv2.CascadeClassifier(r'C:\Users\chunt\OneDrive\Desktop\pyqt5Test\haarcascade_frontalface_default.xml')
 	#face_cascade = cv2.CascadeClassifier(cascade_root + 'haarcascade_upperbody.xml')
 	#face_cascade = cv2.CascadeClassifier(cascade_root + 'haarcascade_fullbody.xml')
 	#cap = cv2.VideoCapture(r'C:\Users\chunt\Downloads\Y2meta.app - Jeremy Renner’s Rescue_ WATCH the Dramatic Bodycam Footage.mp4')

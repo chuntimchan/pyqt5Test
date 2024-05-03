@@ -1,0 +1,28 @@
+{
+    "filepath": "C:/Users/chunt/OneDrive/Desktop/pyqt5Test/SomethingTestingMark",
+    "projectName": "asdas",
+    "videoInfo": {
+        "name": "production_id_4812014 (1080p).mp4",
+        "length": 1920.0,
+        "framerate": 29.97002997002997,
+        "filepath": "C:/Users/chunt/OneDrive/Desktop/pyqt5Test/videos/Henlo/TestProjectMaking/production_id_4812014 (1080p).mp4"
+    },
+    "eventCategories": [
+        {
+            "categoryName": "Walking 2",
+            "colour": "#ff0000",
+            "eventsList": [
+                {
+                    "id": 0,
+                    "frameNumber": 15,
+                    "duration": 30
+                },
+                {
+                    "id": 1,
+                    "frameNumber": 32,
+                    "duration": 30
+                }
+            ]
+        }
+    ]
+}

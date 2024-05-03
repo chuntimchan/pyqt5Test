@@ -16,6 +16,7 @@ class PoseAnalyser(QMainWindow):
         self.create_constants()
         self.init_ui()
         self.disable_buttons()
+        print(cv2.__version__)
 
     def init_ui(self):
         # Create menu bar
@@ -343,7 +344,7 @@ class PoseAnalyser(QMainWindow):
     def nextFrameSlot(self,video_label = None,video_object = None,video_slider = None,to_pose_estimate = None,end_frame = None,frame_number = None) -> int:
         #Default video label if not given is self.videoLabel
         mainView = False
-        if (video_label is None):
+        if (video_label is None or frame_number is None or end_frame is None):
             video_label = self.videoLabel
             video_object = self.cap
             video_slider = self.videoSlider
@@ -459,7 +460,7 @@ class PoseAnalyser(QMainWindow):
             
 
         #Create the event Object
-        new_event = event.Event(self.project.getNumberOfEvents(), self.currentFrame)
+        new_event = event.Event(self.project.getNumberOfEvents(), self.currentFrame,30)
 
         #Add event to project's corresponding category using a dictionary
         self.category_dict = {category.categoryName: category for category in self.project.eventCategories}
@@ -715,7 +716,6 @@ class PoseAnalyser(QMainWindow):
             data = json.load(f)
 
         #Check if the video Info matches the current video and sends a information message box and does not continue
-
         print(type(self.project.videoInfo))
 
         #Clear project and subsiquent nested objects are created
